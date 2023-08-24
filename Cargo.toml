@@ -1,0 +1,24 @@
+[workspace]
+members = [
+	"crates/l1x-sdk",
+	"crates/l1x-sdk-macros",
+    "crates/l1x-sys"
+]
+
+[workspace.package]
+authors = ["l1x-team <info@l1x.foundation>"]
+edition = "2021"
+repository = "https://github.com/L1X-Foundation-VM/l1x-templ-sdk"
+
+[workspace.dependencies]
+borsh = { version = "0.9", features = ["const-generics"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1" }
+proc-macro2 = { version = "1.0" }
+syn = { version = "1", features = ["full", "fold", "extra-traits", "visit"] }
+quote = { version = "1.0" }
+once_cell = { version = "1" }
+hex = { version = "0.4" }
+
+l1x-sdk-macros = { path = "./crates/l1x-sdk-macros" }
+l1x-sys = { path = "./crates/l1x-sys" }

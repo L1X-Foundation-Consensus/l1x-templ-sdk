@@ -1,0 +1,17 @@
+[package]
+name = "l1x-sdk"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+borsh = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+once_cell = { workspace = true }
+hex = { workspace = true }
+
+l1x-sdk-macros = { workspace = true }
+l1x-sys = { workspace = true }
+
+[dev-dependencies]
+lazy_static = "1.4.0"
