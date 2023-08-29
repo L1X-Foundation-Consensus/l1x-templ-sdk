@@ -32,6 +32,7 @@ where
     type Output = T;
 
     fn index(&self, index: u32) -> &Self::Output {
-        self.get(index).unwrap_or_else(|| crate::panic(ERR_INDEX_OUT_OF_BOUNDS))
+        self.get(index)
+            .unwrap_or_else(|| crate::panic(ERR_INDEX_OUT_OF_BOUNDS))
     }
 }

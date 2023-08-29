@@ -1,3 +1,8 @@
+//! Collections and types used when interacting with storage.
+//!
+//! These collections are more scalable versions of [`std::collections`] when used as contract
+//! state because it allows values to be lazily loaded and stored based on what is actually
+//! interacted with.
 pub mod vec;
 pub use self::vec::Vector;
 

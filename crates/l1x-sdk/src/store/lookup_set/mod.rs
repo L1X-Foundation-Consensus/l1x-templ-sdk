@@ -1,9 +1,11 @@
+//! An implementation of a set that stores its content directly on the persistent storage.
 mod impls;
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use std::borrow::Borrow;
 use std::marker::PhantomData;
 
+/// An implementation of a set that stores its content directly on the persistent storage.
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct LookupSet<T>
 where
@@ -30,10 +32,15 @@ impl<T> LookupSet<T>
 where
     T: BorshSerialize,
 {
+    /// Creates a new set. Uses `prefix` as a unique prefix for keys.
     pub fn new(prefix: Vec<u8>) -> Self {
-        Self { prefix: prefix.into_boxed_slice(), hasher: Default::default() }
+        Self {
+            prefix: prefix.into_boxed_slice(),
+            hasher: Default::default(),
+        }
     }
 
+    /// Returns true if the set contains a value.
     pub fn contains<Q: ?Sized>(&self, value: &Q) -> bool
     where
         T: Borrow<Q>,
@@ -43,11 +50,18 @@ where
         crate::storage_read(lookup_key.as_ref()).is_some()
     }
 
+    /// Adds a value to the set.
+    ///
+    /// Returns whether the value was newly inserted. That is:
+    ///
+    /// * If the set did not previously contain this value, true is returned.
+    /// * If the set already contained this value, false is returned.
     pub fn insert(&mut self, value: T) -> bool {
         let lookup_key = to_key(&self.prefix, &value, &mut Vec::new());
         !crate::storage_write(lookup_key.as_ref(), &[])
     }
 
+    /// Removes a value from the set. Returns whether the value was present in the set.
     pub fn remove<Q: ?Sized>(&mut self, value: &Q) -> bool
     where
         T: Borrow<Q>,

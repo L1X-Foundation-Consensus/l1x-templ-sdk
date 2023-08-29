@@ -29,6 +29,7 @@ where
     type Output = V;
 
     fn index(&self, index: &Q) -> &Self::Output {
-        self.get(index).unwrap_or_else(|| crate::panic("does not exist"))
+        self.get(index)
+            .unwrap_or_else(|| crate::panic("does not exist"))
     }
 }

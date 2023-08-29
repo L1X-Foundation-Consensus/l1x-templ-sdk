@@ -28,6 +28,24 @@ fn input_struct_deser(sig: &Signature) -> TokenStream2 {
     }
 }
 
+/// Walks over public methods and generates wrappers for each method it finds.
+///
+/// The generated wrapper reads method arguments [`l1x_sdk::input`], deserializes them, and calls the original method.
+/// When the original method returns, the wrapper serializes the returned value and writes the serialized value with `l1x_sdk::output`
+///
+/// # Example
+/// ```
+/// use l1x_sdk_macros::contract;
+///
+/// struct Contract {};
+///
+/// #[contract]
+/// impl Contract {
+///     pub fn say(msg: String) {
+///         // say "hello"
+///     }
+/// }
+/// ```
 #[proc_macro_attribute]
 pub fn contract(_attr: TokenStream, item: TokenStream) -> TokenStream {
     if let Ok(input) = syn::parse::<ItemImpl>(item) {

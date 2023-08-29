@@ -7,7 +7,9 @@ pub(crate) struct StableMap<K, V> {
 
 impl<K: Ord, V> Default for StableMap<K, V> {
     fn default() -> Self {
-        Self { map: Default::default() }
+        Self {
+            map: Default::default(),
+        }
     }
 }
 

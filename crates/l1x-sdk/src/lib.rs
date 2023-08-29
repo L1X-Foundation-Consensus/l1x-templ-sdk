@@ -2,7 +2,7 @@ use borsh::BorshSerialize;
 pub use l1x_sdk_macros::contract;
 pub use l1x_sys as sys;
 use std::panic as std_panic;
-use types::Address;
+use types::{Address, Balance, BlockHash, BlockNumber, TimeStamp};
 
 pub mod contract_interaction;
 pub mod store;
@@ -27,6 +27,7 @@ macro_rules! method_into_register {
     }};
 }
 
+/// Returns the size of the register. If register is not used returns `None`.
 fn register_len(register_id: u64) -> Option<u64> {
     let len = unsafe { l1x_sys::register_len(register_id) };
     if len == std::u64::MAX {
@@ -36,9 +37,11 @@ fn register_len(register_id: u64) -> Option<u64> {
     }
 }
 
+/// Reads the content of the `register_id`. If register is not used returns `None`.
 fn read_register(register_id: u64) -> Option<Vec<u8>> {
-    let len: usize =
-        register_len(register_id)?.try_into().unwrap_or_else(|_| abort());
+    let len: usize = register_len(register_id)?
+        .try_into()
+        .unwrap_or_else(|_| abort());
 
     let mut buffer = Vec::with_capacity(len);
 
@@ -54,30 +57,37 @@ fn expect_register<T>(option: Option<T>) -> T {
     option.unwrap_or_else(|| abort())
 }
 
+/// Implements panic hook that converts `PanicInfo` into a string and provides it through the
+/// blockchain interface.
 fn panic_hook_impl(info: &std_panic::PanicInfo) {
     msg(&info.to_string());
     abort();
 }
 
+/// Setups panic hook to expose error info to the blockchain.
 pub fn setup_panic_hook() {
     std_panic::set_hook(Box::new(panic_hook_impl));
 }
 
+/// Aborts the current contract execution without a custom message.
+/// To include a message, use [`crate::panic`].
 pub fn abort() -> ! {
     #[cfg(test)]
-    panic("Mocked panic function called!");
+    std::panic!("Mocked panic function called!");
     #[cfg(not(test))]
     unsafe {
         l1x_sys::panic()
     }
 }
 
+/// Terminates the execution of the program with the message.
 pub fn panic(message: &str) -> ! {
     msg(message);
 
     abort()
 }
 
+/// The input to the contract call serialized as bytes. If input is not provided returns `None`.
 pub fn input() -> Option<Vec<u8>> {
     #[cfg(test)]
     {
@@ -87,6 +97,7 @@ pub fn input() -> Option<Vec<u8>> {
     try_method_into_register!(input)
 }
 
+/// Writes `data` to 'output' register
 pub fn output(data: &[u8]) {
     #[cfg(test)]
     {
@@ -112,6 +123,11 @@ pub fn msg(message: &str) {
     }
 }
 
+/// Writes key-value into storage.
+///
+/// If the the storage did not have this key present, `false` is returned.
+///
+/// If the map did have this key present, the value is updated, and `true` is returned.
 pub fn storage_write(key: &[u8], value: &[u8]) -> bool {
     #[cfg(test)]
     {
@@ -133,6 +149,9 @@ pub fn storage_write(key: &[u8], value: &[u8]) -> bool {
     }
 }
 
+/// Removes the value stored under the given key.
+///
+/// If key-value existed returns `true`, otherwise `false`.
 pub fn storage_remove(key: &[u8]) -> bool {
     #[cfg(test)]
     {
@@ -140,15 +159,16 @@ pub fn storage_remove(key: &[u8]) -> bool {
     }
 
     #[cfg(not(test))]
-    match unsafe {
-        sys::storage_remove(key.as_ptr() as _, key.len() as _, EVICTED_REGISTER)
-    } {
+    match unsafe { sys::storage_remove(key.as_ptr() as _, key.len() as _, EVICTED_REGISTER) } {
         0 => false,
         1 => true,
         _ => abort(),
     }
 }
 
+/// Reads the value stored under the given key.
+///
+/// If the storage doesn't have the key present, returns `None`
 pub fn storage_read(key: &[u8]) -> Option<Vec<u8>> {
     #[cfg(test)]
     {
@@ -156,15 +176,14 @@ pub fn storage_read(key: &[u8]) -> Option<Vec<u8>> {
     }
 
     #[cfg(not(test))]
-    match unsafe {
-        sys::storage_read(key.as_ptr() as _, key.len() as _, ATOMIC_OP_REGISTER)
-    } {
+    match unsafe { sys::storage_read(key.as_ptr() as _, key.len() as _, ATOMIC_OP_REGISTER) } {
         0 => None,
         1 => Some(expect_register(read_register(ATOMIC_OP_REGISTER))),
         _ => abort(),
     }
 }
 
+/// Returns the address of the account that owns the current contract.
 pub fn contract_owner_address() -> Address {
     #[cfg(test)]
     {
@@ -176,15 +195,19 @@ pub fn contract_owner_address() -> Address {
         .unwrap_or_else(|_| abort())
 }
 
+/// Returns the address of the account or the contract that called the current contract.
 pub fn caller_address() -> Address {
     #[cfg(test)]
     {
         return tests::caller_address();
     }
     #[cfg(not(test))]
-    method_into_register!(caller_address).try_into().unwrap_or_else(|_| abort())
+    method_into_register!(caller_address)
+        .try_into()
+        .unwrap_or_else(|_| abort())
 }
 
+/// Returns the address of the current contract's instance.
 pub fn contract_instance_address() -> Address {
     #[cfg(test)]
     {
@@ -196,33 +219,74 @@ pub fn contract_instance_address() -> Address {
         .unwrap_or_else(|_| abort())
 }
 
-pub fn call_contract(call: &ContractCall) -> Option<Vec<u8>> {
-    let call =
-        call.try_to_vec().expect("Can't serialize the function arguments");
-    match unsafe {
-        sys::call_contract(
-            call.as_ptr() as _,
-            call.len() as _,
+/// Returns `Balance` of the given `Address`
+///
+/// If `Address` not found, returns `0`
+pub fn address_balance(address: &Address) -> Balance {
+    let address_vec = address.to_vec();
+    unsafe {
+        l1x_sys::address_balance(
+            address_vec.as_ptr() as _,
+            address_vec.len() as _,
             ATOMIC_OP_REGISTER,
         )
-    } {
+    };
+    let bytes = expect_register(read_register(ATOMIC_OP_REGISTER));
+
+    u128::from_le_bytes(bytes.try_into().unwrap_or_else(|_| abort()))
+}
+
+/// Returns the hash of the current block
+pub fn block_hash() -> BlockHash {
+    let mut buf = BlockHash::default();
+
+    unsafe { l1x_sys::block_hash(buf.as_mut_ptr() as _, buf.len() as _) };
+
+    buf
+}
+
+/// Returns the number of the current block
+pub fn block_number() -> BlockNumber {
+    let mut buf = [0u8; std::mem::size_of::<BlockNumber>()];
+
+    unsafe { l1x_sys::block_number(buf.as_mut_ptr() as _, buf.len() as _) };
+
+    BlockNumber::from_le_bytes(buf)
+}
+
+/// Returns the timestamp of the current block
+pub fn block_timestamp() -> TimeStamp {
+    let mut buf = [0u8; std::mem::size_of::<TimeStamp>()];
+
+    unsafe { l1x_sys::block_timestamp(buf.as_mut_ptr() as _, buf.len() as _) };
+
+    TimeStamp::from_le_bytes(buf)
+}
+
+/// Returns `Balance` of the current contract's instance.
+pub fn contract_instance_balance() -> Balance {
+    address_balance(&contract_instance_address())
+}
+
+/// Calls another contract
+pub fn call_contract(call: &ContractCall) -> Option<Vec<u8>> {
+    let call = call
+        .try_to_vec()
+        .expect("Can't serialize the function arguments");
+    match unsafe { sys::call_contract(call.as_ptr() as _, call.len() as _, ATOMIC_OP_REGISTER) } {
         0 => None,
         1 => Some(expect_register(read_register(ATOMIC_OP_REGISTER))),
         _ => abort(),
     }
 }
 
+/// Emits the event. This `event` is stored on chain.
 pub fn emit_event_experimental<T>(event: T)
 where
     T: BorshSerialize,
 {
     let event_data = event.try_to_vec().expect("Can't serialize the event");
-    match unsafe {
-        sys::emit_event_experimental(
-            event_data.as_ptr() as _,
-            event_data.len() as _,
-        )
-    } {
+    match unsafe { sys::emit_event_experimental(event_data.as_ptr() as _, event_data.len() as _) } {
         0 => abort(),
         _ => (),
     }
@@ -265,9 +329,7 @@ mod tests {
                 contract_owner_address: Address::test_create_address(
                     &CONTRACT_OWNER_ADDRESS.to_vec(),
                 ),
-                caller_address: Address::test_create_address(
-                    &CALLER_ADDRESS.to_vec(),
-                ),
+                caller_address: Address::test_create_address(&CALLER_ADDRESS.to_vec()),
                 contract_instance_address: Address::test_create_address(
                     &CONTRACT_INSTANCE_ADDRESS.to_vec(),
                 ),
@@ -276,7 +338,11 @@ mod tests {
     }
 
     pub fn storage_write(key: &[u8], value: &[u8]) -> bool {
-        MOCK_DATA.lock().unwrap().storage.insert(key.to_vec(), value.to_vec());
+        MOCK_DATA
+            .lock()
+            .unwrap()
+            .storage
+            .insert(key.to_vec(), value.to_vec());
         true
     }
 
@@ -341,13 +407,10 @@ mod tests {
     }
 
     pub fn set_mock_caller_address(caller_address: Vec<u8>) {
-        MOCK_DATA.lock().unwrap().caller_address =
-            Address::test_create_address(&caller_address);
+        MOCK_DATA.lock().unwrap().caller_address = Address::test_create_address(&caller_address);
     }
 
-    pub fn set_mock_contract_instance_address(
-        contract_instance_address: Vec<u8>,
-    ) {
+    pub fn set_mock_contract_instance_address(contract_instance_address: Vec<u8>) {
         MOCK_DATA.lock().unwrap().contract_instance_address =
             Address::test_create_address(&contract_instance_address);
     }

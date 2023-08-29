@@ -23,7 +23,10 @@ where
     T: BorshSerialize,
 {
     pub fn new(prefix: Vec<u8>) -> Self {
-        Self { prefix: prefix.into_boxed_slice(), cache: Default::default() }
+        Self {
+            prefix: prefix.into_boxed_slice(),
+            cache: Default::default(),
+        }
     }
 
     fn index_to_lookup_key(prefix: &[u8], index: u32, buf: &mut Vec<u8>) {
@@ -43,9 +46,7 @@ where
                         Some(modified) => {
                             buf.clear();
                             BorshSerialize::serialize(modified, &mut buf)
-                                .unwrap_or_else(|_| {
-                                    crate::panic(ERR_ELEMENT_SERIALIZATION)
-                                });
+                                .unwrap_or_else(|_| crate::panic(ERR_ELEMENT_SERIALIZATION));
                             crate::storage_write(&key_buf, &buf);
                         }
                         None => {
@@ -75,8 +76,7 @@ where
     T: BorshSerialize + BorshDeserialize,
 {
     fn deserialize_element(raw_element: &[u8]) -> T {
-        T::try_from_slice(raw_element)
-            .unwrap_or_else(|_| crate::panic(ERR_ELEMENT_DESERIALIZATION))
+        T::try_from_slice(raw_element).unwrap_or_else(|_| crate::panic(ERR_ELEMENT_DESERIALIZATION))
     }
 
     pub fn get(&self, index: u32) -> Option<&T> {
