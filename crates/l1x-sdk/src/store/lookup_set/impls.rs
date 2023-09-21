@@ -3,7 +3,7 @@ use borsh::BorshSerialize;
 
 impl<T> Extend<T> for LookupSet<T>
 where
-    T: BorshSerialize,
+    T: BorshSerialize + Ord + Clone,
 {
     fn extend<I>(&mut self, iter: I)
     where
