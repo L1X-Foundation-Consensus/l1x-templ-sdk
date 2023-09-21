@@ -39,6 +39,7 @@ extern "C" {
     /*
      * Context API
      */
+    pub fn current_runtime_version() -> u64;
     pub fn input(result_register_id: RegisterId);
     pub fn output(output_addr: MemoryAddress, output_len: u64);
     pub fn contract_owner_address(register_id: u64);
@@ -48,11 +49,21 @@ extern "C" {
     pub fn block_number(output_addr: MemoryAddress, output_len: u64);
     pub fn block_timestamp(output_addr: MemoryAddress, output_len: u64);
 
+    /*
+     * Economics API
+     */
     pub fn address_balance(
         address_ptr: MemoryAddress,
         address_len: u64,
         result_register_id: RegisterId,
     );
+    pub fn transfer_to(
+        to_address_ptr: MemoryAddress,
+        to_address_len: u64,
+        amount_ptr: MemoryAddress,
+        amount_len: u64,
+    ) -> ReturnCode;
+    pub fn transfer_from_caller(amount_ptr: MemoryAddress, amount_len: u64) -> ReturnCode;
     /*
      * Misc API
      */

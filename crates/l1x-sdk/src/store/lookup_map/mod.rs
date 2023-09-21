@@ -78,6 +78,19 @@ where
         }
     }
 
+    #[cfg(test)]
+    pub fn to_key_test<Q>(prefix: &[u8], key: &Q, buffer: &mut Vec<u8>) -> Vec<u8>
+    where
+        Q: ?Sized + BorshSerialize,
+    {
+        to_key(prefix, key, buffer)
+    }
+
+    /// Returns the unique byte prefix used for key generation in the `LookupSet`.
+    pub fn get_prefix(&self) -> &Box<[u8]> {
+        &self.prefix
+    }
+
     /// Inserts or removes a key-value to the map.
     ///
     /// * If `value` is `None` then the specified key is removed.

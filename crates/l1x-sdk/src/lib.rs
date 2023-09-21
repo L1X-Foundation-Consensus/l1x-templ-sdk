@@ -14,6 +14,12 @@ pub(crate) use crate::utils::*;
 const EVICTED_REGISTER: u64 = std::u64::MAX - 1;
 const ATOMIC_OP_REGISTER: u64 = std::u64::MAX - 2;
 
+#[derive(Debug)]
+pub enum TransferError {
+    TransferFailed,
+    InsufficientFunds,
+}
+
 macro_rules! try_method_into_register {
     ( $method:ident ) => {{
         unsafe { l1x_sys::$method(ATOMIC_OP_REGISTER) };
@@ -236,6 +242,42 @@ pub fn address_balance(address: &Address) -> Balance {
     u128::from_le_bytes(bytes.try_into().unwrap_or_else(|_| abort()))
 }
 
+/// Transfers `amount` of L1X tokens from [`contract_instance_address`] to the specified address
+///
+/// # Panics
+///
+/// Panics if transfer failed
+pub fn transfer_to(to: &Address, amount: Balance) {
+    let to_address_vec = to.to_vec();
+    let amount = amount.to_le_bytes();
+    match unsafe {
+        l1x_sys::transfer_to(
+            to_address_vec.as_ptr() as _,
+            to_address_vec.len() as _,
+            amount.as_ptr() as _,
+            amount.len() as _,
+        )
+    } {
+        1 => (),
+        0 => crate::panic("Transfer tokens from the contract balance failed"),
+        _ => abort(),
+    };
+}
+
+/// Transfers `amount` of L1X tokens from [`caller_address`] to [`contract_instance_address`]
+///
+/// # Panics
+///
+/// Panics if transfer failed
+pub fn transfer_from_caller(amount: Balance) {
+    let amount = amount.to_le_bytes();
+    match unsafe { l1x_sys::transfer_from_caller(amount.as_ptr() as _, amount.len() as _) } {
+        1 => (),
+        0 => crate::panic("Transfer tokens from the caller balance failed"),
+        _ => abort(),
+    }
+}
+
 /// Returns the hash of the current block
 pub fn block_hash() -> BlockHash {
     let mut buf = BlockHash::default();
@@ -269,6 +311,11 @@ pub fn contract_instance_balance() -> Balance {
 }
 
 /// Calls another contract
+///
+/// # Panics
+///
+/// - If deserialization of `call` failed
+/// - If `call.read_only` is `false` but `call_contract` is called from read-only context
 pub fn call_contract(call: &ContractCall) -> Option<Vec<u8>> {
     let call = call
         .try_to_vec()
@@ -295,14 +342,12 @@ where
 #[cfg(test)]
 mod tests {
 
-    use lazy_static::lazy_static;
-    use std::collections::HashMap;
-    use std::sync::Mutex;
-
     use crate::types::Address;
+    use std::cell::RefCell;
+    use std::collections::HashMap;
 
-    lazy_static! {
-        static ref MOCK_DATA: Mutex<MockData> = Mutex::new(MockData::new());
+    thread_local! {
+        static MOCK_DATA: RefCell<MockData> = RefCell::new(MockData::new());
     }
 
     const CONTRACT_OWNER_ADDRESS: &[u8; 20] = b"mock_owner_address11";
@@ -338,81 +383,95 @@ mod tests {
     }
 
     pub fn storage_write(key: &[u8], value: &[u8]) -> bool {
-        MOCK_DATA
-            .lock()
-            .unwrap()
-            .storage
-            .insert(key.to_vec(), value.to_vec());
-        true
+        MOCK_DATA.with(|data| {
+            let mut mock_data = data.borrow_mut();
+            // Check if the key is already in the storage
+            let is_new_insertion = !mock_data.storage.contains_key(key);
+            mock_data.storage.insert(key.to_vec(), value.to_vec());
+            is_new_insertion
+        })
     }
 
     pub fn storage_read(key: &[u8]) -> Option<Vec<u8>> {
-        MOCK_DATA.lock().unwrap().storage.get(key).cloned()
+        MOCK_DATA.with(|data| data.borrow().storage.get(key).cloned())
     }
 
     pub fn storage_remove(key: &[u8]) -> bool {
-        MOCK_DATA.lock().unwrap().storage.remove(key).is_some()
+        MOCK_DATA.with(|data| data.borrow_mut().storage.remove(key).is_some())
     }
 
     pub fn contract_owner_address() -> Address {
-        MOCK_DATA.lock().unwrap().contract_owner_address.clone()
+        MOCK_DATA.with(|data| data.borrow().contract_owner_address.clone())
     }
 
     pub fn caller_address() -> Address {
-        MOCK_DATA.lock().unwrap().caller_address.clone()
+        MOCK_DATA.with(|data| data.borrow().caller_address.clone())
     }
 
     pub fn contract_instance_address() -> Address {
-        MOCK_DATA.lock().unwrap().contract_instance_address.clone()
+        MOCK_DATA.with(|data| data.borrow().contract_instance_address.clone())
     }
 
     pub fn remove_from_mock_storage(key: &[u8]) -> bool {
-        MOCK_DATA.lock().unwrap().storage.remove(key).is_some()
+        MOCK_DATA.with(|data| data.borrow_mut().storage.remove(key).is_some())
     }
 
     pub fn input() -> Option<Vec<u8>> {
-        MOCK_DATA.lock().unwrap().input.clone()
+        MOCK_DATA.with(|data| data.borrow().input.clone())
     }
 
     pub fn output(data: &[u8]) {
-        MOCK_DATA.lock().unwrap().output = data.to_vec();
+        MOCK_DATA.with(|data_refcell| {
+            let mut data_inside = data_refcell.borrow_mut();
+            data_inside.output = data.to_vec();
+        })
     }
 
     pub fn msg(message: &str) {
-        MOCK_DATA.lock().unwrap().messages.push(message.to_owned());
+        MOCK_DATA.with(|data| data.borrow_mut().messages.push(message.to_owned()))
     }
 
     pub fn set_mock_input(data: Vec<u8>) {
-        MOCK_DATA.lock().unwrap().input = Some(data);
+        MOCK_DATA.with(|data_refcell| {
+            let mut data_inside = data_refcell.borrow_mut();
+            data_inside.input = Some(data);
+        });
     }
 
     pub fn get_mock_output() -> Vec<u8> {
-        MOCK_DATA.lock().unwrap().output.clone()
+        MOCK_DATA.with(|data| data.borrow().output.clone())
     }
 
     pub fn get_mock_msgs() -> Vec<String> {
-        MOCK_DATA.lock().unwrap().messages.clone()
+        MOCK_DATA.with(|data| data.borrow().messages.clone())
     }
 
     pub fn clear_mock_io() {
-        let mut data = MOCK_DATA.lock().unwrap();
-        data.input = None;
-        data.output = Vec::new();
-        data.messages = Vec::new();
+        MOCK_DATA.with(|data| {
+            let mut data = data.borrow_mut();
+            data.input = None;
+            data.output = Vec::new();
+            data.messages = Vec::new();
+        })
     }
 
     pub fn set_mock_contract_owner_address(owner_address: Vec<u8>) {
-        MOCK_DATA.lock().unwrap().contract_owner_address =
-            Address::test_create_address(&owner_address);
+        MOCK_DATA.with(|data| {
+            data.borrow_mut().contract_owner_address = Address::test_create_address(&owner_address)
+        })
     }
 
     pub fn set_mock_caller_address(caller_address: Vec<u8>) {
-        MOCK_DATA.lock().unwrap().caller_address = Address::test_create_address(&caller_address);
+        MOCK_DATA.with(|data| {
+            data.borrow_mut().caller_address = Address::test_create_address(&caller_address)
+        })
     }
 
     pub fn set_mock_contract_instance_address(contract_instance_address: Vec<u8>) {
-        MOCK_DATA.lock().unwrap().contract_instance_address =
-            Address::test_create_address(&contract_instance_address);
+        MOCK_DATA.with(|data| {
+            data.borrow_mut().contract_instance_address =
+                Address::test_create_address(&contract_instance_address)
+        })
     }
 
     ////////////////////////////////////////////// TESTS ////////////////////////////////////////////////////////////

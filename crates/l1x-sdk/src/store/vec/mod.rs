@@ -291,11 +291,11 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_push_persistence() {
         let mut vector: Vector<TestValue> = Vector::new(b"test".to_vec());
 
         vector.push(TestValue(10));
+        vector.flush();
 
         // Construct the expected storage key
         let mut expected_key = b"test".to_vec();
@@ -304,15 +304,17 @@ mod tests {
         // Check that the value has been written in the underlying storage
         let written_value =
             TestValue::try_from_slice(&mut &*storage_read(&expected_key).unwrap()).unwrap();
+        assert_eq!(written_value, TestValue(10));
     }
 
     #[test]
-    #[ignore]
     fn test_set_persistence() {
         let mut vector: Vector<TestValue> = Vector::new(b"test".to_vec());
 
         vector.push(TestValue(10));
+        vector.flush();
         vector.set(0, TestValue(20));
+        vector.flush();
 
         // Construct the expected storage key
         let mut expected_key = b"test".to_vec();
@@ -321,5 +323,6 @@ mod tests {
         // Check that the value has been updated in the underlying storage
         let written_value =
             TestValue::try_from_slice(&mut &*storage_read(&expected_key).unwrap()).unwrap();
+        assert_eq!(written_value, TestValue(20));
     }
 }
