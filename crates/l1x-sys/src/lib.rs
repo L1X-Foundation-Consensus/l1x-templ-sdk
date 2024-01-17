@@ -12,7 +12,11 @@ extern "C" {
      */
     pub fn read_register(register_id: RegisterId, result_addr: MemoryAddress);
     pub fn register_len(register_id: RegisterId) -> u64;
-    pub fn write_register(register_id: RegisterId, data_addr: MemoryAddress, data_len: u64);
+    pub fn write_register(
+        register_id: RegisterId,
+        data_addr: MemoryAddress,
+        data_len: u64,
+    );
     /*
      * Storage API
      */
@@ -63,7 +67,10 @@ extern "C" {
         amount_ptr: MemoryAddress,
         amount_len: u64,
     ) -> ReturnCode;
-    pub fn transfer_from_caller(amount_ptr: MemoryAddress, amount_len: u64) -> ReturnCode;
+    pub fn transfer_from_caller(
+        amount_ptr: MemoryAddress,
+        amount_len: u64,
+    ) -> ReturnCode;
     /*
      * Misc API
      */
@@ -76,5 +83,8 @@ extern "C" {
         result_register_id: RegisterId,
     ) -> ReturnCode;
 
-    pub fn emit_event_experimental(data_addr: MemoryAddress, len: u64) -> ReturnCode;
+    pub fn emit_event_experimental(
+        data_addr: MemoryAddress,
+        len: u64,
+    ) -> ReturnCode;
 }

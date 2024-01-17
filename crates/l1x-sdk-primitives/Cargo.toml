@@ -1,0 +1,11 @@
+[package]
+name = "l1x-sdk-primitives"
+version = "0.2.1"
+edition = "2021"
+
+[dependencies]
+borsh = { version = "0.9", features = ["const-generics"] }
+serde = { version = "1", features = ["derive"] }
+hex = "0.4"
+macropol = "0.1.3"
+uint = "0.9.5"

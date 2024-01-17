@@ -41,7 +41,9 @@ impl<T> BorshDeserialize for Vector<T>
 where
     T: BorshSerialize + BorshDeserialize,
 {
-    fn deserialize(buf: &mut &[u8]) -> Result<Self, borsh::maybestd::io::Error> {
+    fn deserialize(
+        buf: &mut &[u8],
+    ) -> Result<Self, borsh::maybestd::io::Error> {
         Ok(Self {
             len: BorshDeserialize::deserialize(buf)?,
             values: BorshDeserialize::deserialize(buf)?,
@@ -55,10 +57,7 @@ where
 {
     /// Creates a new vector with zero length. Uses `prefix` as a unique prefix for indices.
     pub fn new(prefix: Vec<u8>) -> Self {
-        Self {
-            len: 0,
-            values: IndexMap::new(prefix),
-        }
+        Self { len: 0, values: IndexMap::new(prefix) }
     }
 
     /// Returns the number of elements in the vector, also referred to as its 'length'.
@@ -166,7 +165,8 @@ where
         if last_idx == index {
             self.pop().unwrap_or_else(|| abort())
         } else {
-            let elem = self.values.get(index).copied().unwrap_or_else(|| abort());
+            let elem =
+                self.values.get(index).copied().unwrap_or_else(|| abort());
             let last_elem = self.pop();
 
             self.values.set(index, last_elem);
@@ -183,7 +183,9 @@ mod tests {
     use super::*;
     use borsh::{BorshDeserialize, BorshSerialize};
 
-    #[derive(BorshSerialize, BorshDeserialize, PartialEq, Clone, Copy, Debug)]
+    #[derive(
+        BorshSerialize, BorshDeserialize, PartialEq, Clone, Copy, Debug,
+    )]
     struct TestValue(i32);
 
     #[test]
@@ -222,7 +224,8 @@ mod tests {
 
     #[test]
     fn test_vector_non_empty_prefix() {
-        let vector: Vector<TestValue> = Vector::new(b"non_empty_prefix".to_vec());
+        let vector: Vector<TestValue> =
+            Vector::new(b"non_empty_prefix".to_vec());
         assert_eq!(vector.len(), 0);
     }
 
@@ -302,8 +305,10 @@ mod tests {
         expected_key.extend_from_slice(&0u32.to_le_bytes());
 
         // Check that the value has been written in the underlying storage
-        let written_value =
-            TestValue::try_from_slice(&mut &*storage_read(&expected_key).unwrap()).unwrap();
+        let written_value = TestValue::try_from_slice(
+            &mut &*storage_read(&expected_key).unwrap(),
+        )
+        .unwrap();
         assert_eq!(written_value, TestValue(10));
     }
 
@@ -321,8 +326,10 @@ mod tests {
         expected_key.extend_from_slice(&0u32.to_le_bytes());
 
         // Check that the value has been updated in the underlying storage
-        let written_value =
-            TestValue::try_from_slice(&mut &*storage_read(&expected_key).unwrap()).unwrap();
+        let written_value = TestValue::try_from_slice(
+            &mut &*storage_read(&expected_key).unwrap(),
+        )
+        .unwrap();
         assert_eq!(written_value, TestValue(20));
     }
 }

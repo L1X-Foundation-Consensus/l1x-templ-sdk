@@ -23,13 +23,16 @@ where
 {
     /// Creates a new set. Uses `prefix` as a unique prefix for keys.
     pub fn new(prefix: Vec<u8>) -> Self {
-        Self {
-            map: LookupMap::new(prefix),
-        }
+        Self { map: LookupMap::new(prefix) }
     }
 
     #[cfg(test)]
-    pub fn to_key_test<Q>(&self, prefix: &[u8], key: &Q, buffer: &mut Vec<u8>) -> Vec<u8>
+    pub fn to_key_test<Q>(
+        &self,
+        prefix: &[u8],
+        key: &Q,
+        buffer: &mut Vec<u8>,
+    ) -> Vec<u8>
     where
         Q: ?Sized + BorshSerialize,
     {
@@ -95,7 +98,16 @@ mod tests {
 
     use borsh::{BorshDeserialize, BorshSerialize};
 
-    #[derive(BorshSerialize, BorshDeserialize, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    #[derive(
+        BorshSerialize,
+        BorshDeserialize,
+        Clone,
+        Debug,
+        PartialEq,
+        Eq,
+        PartialOrd,
+        Ord,
+    )]
     struct TestValue(i32);
 
     #[test]

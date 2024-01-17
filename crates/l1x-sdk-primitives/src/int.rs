@@ -46,7 +46,9 @@ macro_rules! impl_str_type {
         }
 
         impl<'de> Deserialize<'de> for $iden {
-            fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error>
+            fn deserialize<D>(
+                deserializer: D,
+            ) -> Result<Self, <D as Deserializer<'de>>::Error>
             where
                 D: Deserializer<'de>,
             {
@@ -73,7 +75,10 @@ construct_uint! {
 }
 
 impl Serialize for U256 {
-    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
+    fn serialize<S>(
+        &self,
+        serializer: S,
+    ) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error>
     where
         S: Serializer,
     {
@@ -82,7 +87,9 @@ impl Serialize for U256 {
 }
 
 impl<'de> Deserialize<'de> for U256 {
-    fn deserialize<D>(deserializer: D) -> Result<Self, <D as Deserializer<'de>>::Error>
+    fn deserialize<D>(
+        deserializer: D,
+    ) -> Result<Self, <D as Deserializer<'de>>::Error>
     where
         D: Deserializer<'de>,
     {
