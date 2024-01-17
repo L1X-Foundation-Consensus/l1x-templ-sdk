@@ -1,12 +1,19 @@
 use borsh::BorshSerialize;
 pub use l1x_sdk_macros::contract;
-pub use l1x_sys as sys;
+
+// When the 'native_test_runtime' feature is enabled, use the 'l1x_test_runtime' module.
+#[cfg(feature = "native_test_runtime")]
+use l1x_test_runtime::TestRuntimeVMApi as l1x_sys_rt;
+
+// When the 'native_test_runtime' feature is not enabled, use the 'l1x_sys' module.
+#[cfg(not(feature = "native_test_runtime"))]
+pub use l1x_sys as l1x_sys_rt;
+
+use l1x_sdk_primitives::{Address, Balance, BlockHash, BlockNumber, TimeStamp};
 use std::panic as std_panic;
-use types::{Address, Balance, BlockHash, BlockNumber, TimeStamp};
 
 pub mod contract_interaction;
 pub mod store;
-pub mod types;
 use contract_interaction::ContractCall;
 pub mod utils;
 pub(crate) use crate::utils::*;
@@ -22,7 +29,7 @@ pub enum TransferError {
 
 macro_rules! try_method_into_register {
     ( $method:ident ) => {{
-        unsafe { l1x_sys::$method(ATOMIC_OP_REGISTER) };
+        unsafe { l1x_sys_rt::$method(ATOMIC_OP_REGISTER) };
         read_register(ATOMIC_OP_REGISTER)
     }};
 }
@@ -35,7 +42,7 @@ macro_rules! method_into_register {
 
 /// Returns the size of the register. If register is not used returns `None`.
 fn register_len(register_id: u64) -> Option<u64> {
-    let len = unsafe { l1x_sys::register_len(register_id) };
+    let len = unsafe { l1x_sys_rt::register_len(register_id) };
     if len == std::u64::MAX {
         None
     } else {
@@ -45,14 +52,13 @@ fn register_len(register_id: u64) -> Option<u64> {
 
 /// Reads the content of the `register_id`. If register is not used returns `None`.
 fn read_register(register_id: u64) -> Option<Vec<u8>> {
-    let len: usize = register_len(register_id)?
-        .try_into()
-        .unwrap_or_else(|_| abort());
+    let len: usize =
+        register_len(register_id)?.try_into().unwrap_or_else(|_| abort());
 
     let mut buffer = Vec::with_capacity(len);
 
     unsafe {
-        l1x_sys::read_register(register_id, buffer.as_mut_ptr() as u64);
+        l1x_sys_rt::read_register(register_id, buffer.as_mut_ptr() as u64);
 
         buffer.set_len(len);
     }
@@ -82,7 +88,7 @@ pub fn abort() -> ! {
     std::panic!("Mocked panic function called!");
     #[cfg(not(test))]
     unsafe {
-        l1x_sys::panic()
+        l1x_sys_rt::panic()
     }
 }
 
@@ -111,7 +117,7 @@ pub fn output(data: &[u8]) {
     }
     #[cfg(not(test))]
     unsafe {
-        sys::output(data.as_ptr() as _, data.len() as _)
+        l1x_sys_rt::output(data.as_ptr() as _, data.len() as _)
     }
 }
 
@@ -125,7 +131,7 @@ pub fn msg(message: &str) {
         #[cfg(all(debug_assertions, not(target_arch = "wasm32")))]
         eprintln!("{}", message);
 
-        unsafe { l1x_sys::msg(message.as_ptr() as _, message.len() as _) }
+        unsafe { l1x_sys_rt::msg(message.as_ptr() as _, message.len() as _) }
     }
 }
 
@@ -141,7 +147,7 @@ pub fn storage_write(key: &[u8], value: &[u8]) -> bool {
     }
     #[cfg(not(test))]
     match unsafe {
-        sys::storage_write(
+        l1x_sys_rt::storage_write(
             key.as_ptr() as _,
             key.len() as _,
             value.as_ptr() as _,
@@ -165,7 +171,13 @@ pub fn storage_remove(key: &[u8]) -> bool {
     }
 
     #[cfg(not(test))]
-    match unsafe { sys::storage_remove(key.as_ptr() as _, key.len() as _, EVICTED_REGISTER) } {
+    match unsafe {
+        l1x_sys_rt::storage_remove(
+            key.as_ptr() as _,
+            key.len() as _,
+            EVICTED_REGISTER,
+        )
+    } {
         0 => false,
         1 => true,
         _ => abort(),
@@ -182,7 +194,13 @@ pub fn storage_read(key: &[u8]) -> Option<Vec<u8>> {
     }
 
     #[cfg(not(test))]
-    match unsafe { sys::storage_read(key.as_ptr() as _, key.len() as _, ATOMIC_OP_REGISTER) } {
+    match unsafe {
+        l1x_sys_rt::storage_read(
+            key.as_ptr() as _,
+            key.len() as _,
+            ATOMIC_OP_REGISTER,
+        )
+    } {
         0 => None,
         1 => Some(expect_register(read_register(ATOMIC_OP_REGISTER))),
         _ => abort(),
@@ -208,9 +226,7 @@ pub fn caller_address() -> Address {
         return tests::caller_address();
     }
     #[cfg(not(test))]
-    method_into_register!(caller_address)
-        .try_into()
-        .unwrap_or_else(|_| abort())
+    method_into_register!(caller_address).try_into().unwrap_or_else(|_| abort())
 }
 
 /// Returns the address of the current contract's instance.
@@ -231,7 +247,7 @@ pub fn contract_instance_address() -> Address {
 pub fn address_balance(address: &Address) -> Balance {
     let address_vec = address.to_vec();
     unsafe {
-        l1x_sys::address_balance(
+        l1x_sys_rt::address_balance(
             address_vec.as_ptr() as _,
             address_vec.len() as _,
             ATOMIC_OP_REGISTER,
@@ -251,7 +267,7 @@ pub fn transfer_to(to: &Address, amount: Balance) {
     let to_address_vec = to.to_vec();
     let amount = amount.to_le_bytes();
     match unsafe {
-        l1x_sys::transfer_to(
+        l1x_sys_rt::transfer_to(
             to_address_vec.as_ptr() as _,
             to_address_vec.len() as _,
             amount.as_ptr() as _,
@@ -271,7 +287,12 @@ pub fn transfer_to(to: &Address, amount: Balance) {
 /// Panics if transfer failed
 pub fn transfer_from_caller(amount: Balance) {
     let amount = amount.to_le_bytes();
-    match unsafe { l1x_sys::transfer_from_caller(amount.as_ptr() as _, amount.len() as _) } {
+    match unsafe {
+        l1x_sys_rt::transfer_from_caller(
+            amount.as_ptr() as _,
+            amount.len() as _,
+        )
+    } {
         1 => (),
         0 => crate::panic("Transfer tokens from the caller balance failed"),
         _ => abort(),
@@ -282,7 +303,7 @@ pub fn transfer_from_caller(amount: Balance) {
 pub fn block_hash() -> BlockHash {
     let mut buf = BlockHash::default();
 
-    unsafe { l1x_sys::block_hash(buf.as_mut_ptr() as _, buf.len() as _) };
+    unsafe { l1x_sys_rt::block_hash(buf.as_mut_ptr() as _, buf.len() as _) };
 
     buf
 }
@@ -291,7 +312,7 @@ pub fn block_hash() -> BlockHash {
 pub fn block_number() -> BlockNumber {
     let mut buf = [0u8; std::mem::size_of::<BlockNumber>()];
 
-    unsafe { l1x_sys::block_number(buf.as_mut_ptr() as _, buf.len() as _) };
+    unsafe { l1x_sys_rt::block_number(buf.as_mut_ptr() as _, buf.len() as _) };
 
     BlockNumber::from_le_bytes(buf)
 }
@@ -300,7 +321,9 @@ pub fn block_number() -> BlockNumber {
 pub fn block_timestamp() -> TimeStamp {
     let mut buf = [0u8; std::mem::size_of::<TimeStamp>()];
 
-    unsafe { l1x_sys::block_timestamp(buf.as_mut_ptr() as _, buf.len() as _) };
+    unsafe {
+        l1x_sys_rt::block_timestamp(buf.as_mut_ptr() as _, buf.len() as _)
+    };
 
     TimeStamp::from_le_bytes(buf)
 }
@@ -317,10 +340,15 @@ pub fn contract_instance_balance() -> Balance {
 /// - If deserialization of `call` failed
 /// - If `call.read_only` is `false` but `call_contract` is called from read-only context
 pub fn call_contract(call: &ContractCall) -> Option<Vec<u8>> {
-    let call = call
-        .try_to_vec()
-        .expect("Can't serialize the function arguments");
-    match unsafe { sys::call_contract(call.as_ptr() as _, call.len() as _, ATOMIC_OP_REGISTER) } {
+    let call =
+        call.try_to_vec().expect("Can't serialize the function arguments");
+    match unsafe {
+        l1x_sys_rt::call_contract(
+            call.as_ptr() as _,
+            call.len() as _,
+            ATOMIC_OP_REGISTER,
+        )
+    } {
         0 => None,
         1 => Some(expect_register(read_register(ATOMIC_OP_REGISTER))),
         _ => abort(),
@@ -333,7 +361,12 @@ where
     T: BorshSerialize,
 {
     let event_data = event.try_to_vec().expect("Can't serialize the event");
-    match unsafe { sys::emit_event_experimental(event_data.as_ptr() as _, event_data.len() as _) } {
+    match unsafe {
+        l1x_sys_rt::emit_event_experimental(
+            event_data.as_ptr() as _,
+            event_data.len() as _,
+        )
+    } {
         0 => abort(),
         _ => (),
     }
@@ -374,7 +407,9 @@ mod tests {
                 contract_owner_address: Address::test_create_address(
                     &CONTRACT_OWNER_ADDRESS.to_vec(),
                 ),
-                caller_address: Address::test_create_address(&CALLER_ADDRESS.to_vec()),
+                caller_address: Address::test_create_address(
+                    &CALLER_ADDRESS.to_vec(),
+                ),
                 contract_instance_address: Address::test_create_address(
                     &CONTRACT_INSTANCE_ADDRESS.to_vec(),
                 ),
@@ -428,7 +463,8 @@ mod tests {
     }
 
     pub fn msg(message: &str) {
-        MOCK_DATA.with(|data| data.borrow_mut().messages.push(message.to_owned()))
+        MOCK_DATA
+            .with(|data| data.borrow_mut().messages.push(message.to_owned()))
     }
 
     pub fn set_mock_input(data: Vec<u8>) {
@@ -457,17 +493,21 @@ mod tests {
 
     pub fn set_mock_contract_owner_address(owner_address: Vec<u8>) {
         MOCK_DATA.with(|data| {
-            data.borrow_mut().contract_owner_address = Address::test_create_address(&owner_address)
+            data.borrow_mut().contract_owner_address =
+                Address::test_create_address(&owner_address)
         })
     }
 
     pub fn set_mock_caller_address(caller_address: Vec<u8>) {
         MOCK_DATA.with(|data| {
-            data.borrow_mut().caller_address = Address::test_create_address(&caller_address)
+            data.borrow_mut().caller_address =
+                Address::test_create_address(&caller_address)
         })
     }
 
-    pub fn set_mock_contract_instance_address(contract_instance_address: Vec<u8>) {
+    pub fn set_mock_contract_instance_address(
+        contract_instance_address: Vec<u8>,
+    ) {
         MOCK_DATA.with(|data| {
             data.borrow_mut().contract_instance_address =
                 Address::test_create_address(&contract_instance_address)

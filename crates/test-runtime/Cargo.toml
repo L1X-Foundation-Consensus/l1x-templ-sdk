@@ -1,0 +1,10 @@
+[package]
+name = "l1x-test-runtime"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log = { version = "0.4.14" }
+hex = "0.4.3"
+l1x-test-utility = { path = "../test-utility" }
+l1x-sdk-primitives = { path = "../l1x-sdk-primitives" }

@@ -37,10 +37,7 @@ struct EntryAndHash<V> {
 
 impl<V> Default for EntryAndHash<V> {
     fn default() -> Self {
-        Self {
-            value: Default::default(),
-            hash: Default::default(),
-        }
+        Self { value: Default::default(), hash: Default::default() }
     }
 }
 
@@ -72,14 +69,15 @@ where
 {
     /// Creates a new map. Uses `prefix` as a unique prefix for keys.
     pub fn new(prefix: Vec<u8>) -> Self {
-        Self {
-            prefix: prefix.into_boxed_slice(),
-            cache: Default::default(),
-        }
+        Self { prefix: prefix.into_boxed_slice(), cache: Default::default() }
     }
 
     #[cfg(test)]
-    pub fn to_key_test<Q>(prefix: &[u8], key: &Q, buffer: &mut Vec<u8>) -> Vec<u8>
+    pub fn to_key_test<Q>(
+        prefix: &[u8],
+        key: &Q,
+        buffer: &mut Vec<u8>,
+    ) -> Vec<u8>
     where
         Q: ?Sized + BorshSerialize,
     {
@@ -106,7 +104,8 @@ where
     }
 
     fn deserialize_element(bytes: &[u8]) -> V {
-        V::try_from_slice(bytes).unwrap_or_else(|_| crate::panic(ERR_ELEMENT_DESERIALIZATION))
+        V::try_from_slice(bytes)
+            .unwrap_or_else(|_| crate::panic(ERR_ELEMENT_DESERIALIZATION))
     }
 
     fn load_element<Q: ?Sized>(prefix: &[u8], key: &Q) -> (Vec<u8>, Option<V>)
@@ -153,12 +152,17 @@ where
 
         let entry = cached.value.get_mut().unwrap_or_else(|| crate::abort());
         match entry.value() {
-            Some(_) => Some(entry.value_mut().as_mut().unwrap_or_else(|| crate::abort())),
+            Some(_) => Some(
+                entry.value_mut().as_mut().unwrap_or_else(|| crate::abort()),
+            ),
             None => None,
         }
     }
 
-    pub(crate) fn get_mut_inner<Q: ?Sized>(&mut self, k: &Q) -> &mut CacheEntry<V>
+    pub(crate) fn get_mut_inner<Q: ?Sized>(
+        &mut self,
+        k: &Q,
+    ) -> &mut CacheEntry<V>
     where
         K: Borrow<Q>,
         Q: BorshSerialize + ToOwned<Owned = K>,
@@ -222,7 +226,9 @@ where
                         Some(modified) => {
                             buf.clear();
                             BorshSerialize::serialize(modified, &mut buf)
-                                .unwrap_or_else(|_| crate::panic(ERR_ELEMENT_SERIALIZATION));
+                                .unwrap_or_else(|_| {
+                                    crate::panic(ERR_ELEMENT_SERIALIZATION)
+                                });
                             crate::storage_write(key.as_ref(), &buf);
                         }
                         None => {
@@ -247,7 +253,16 @@ mod tests {
     use super::*;
     use borsh::{BorshDeserialize, BorshSerialize};
 
-    #[derive(BorshSerialize, BorshDeserialize, Ord, PartialOrd, Eq, PartialEq, Clone, Debug)]
+    #[derive(
+        BorshSerialize,
+        BorshDeserialize,
+        Ord,
+        PartialOrd,
+        Eq,
+        PartialEq,
+        Clone,
+        Debug,
+    )]
     struct TestKey(i32);
 
     #[derive(BorshSerialize, BorshDeserialize, PartialEq, Clone, Debug)]
@@ -255,14 +270,16 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let map: LookupMap<TestKey, TestValue> = LookupMap::new(b"test".to_vec());
+        let map: LookupMap<TestKey, TestValue> =
+            LookupMap::new(b"test".to_vec());
         assert_eq!(&*map.prefix, b"test");
         assert!(map.cache.is_empty());
     }
 
     #[test]
     fn test_set_and_get() {
-        let mut map: LookupMap<TestKey, TestValue> = LookupMap::new(b"test".to_vec());
+        let mut map: LookupMap<TestKey, TestValue> =
+            LookupMap::new(b"test".to_vec());
 
         // Set key-value pair
         map.set(TestKey(1), Some(TestValue(10)));
@@ -274,7 +291,8 @@ mod tests {
 
     #[test]
     fn test_insert_and_get() {
-        let mut map: LookupMap<TestKey, TestValue> = LookupMap::new(b"test".to_vec());
+        let mut map: LookupMap<TestKey, TestValue> =
+            LookupMap::new(b"test".to_vec());
 
         // Insert key-value pair
         map.insert(TestKey(1), TestValue(10));
@@ -286,7 +304,8 @@ mod tests {
 
     #[test]
     fn test_remove() {
-        let mut map: LookupMap<TestKey, TestValue> = LookupMap::new(b"test".to_vec());
+        let mut map: LookupMap<TestKey, TestValue> =
+            LookupMap::new(b"test".to_vec());
 
         // Insert key-value pair
         map.insert(TestKey(1), TestValue(10));
@@ -301,7 +320,8 @@ mod tests {
 
     #[test]
     fn test_flush() {
-        let mut map: LookupMap<TestKey, TestValue> = LookupMap::new(b"test".to_vec());
+        let mut map: LookupMap<TestKey, TestValue> =
+            LookupMap::new(b"test".to_vec());
 
         // Insert key-value pair
         map.insert(TestKey(1), TestValue(10));
@@ -310,7 +330,8 @@ mod tests {
         map.flush();
 
         // Check storage for key-value pair
-        let stored_value = storage_read(&to_key(b"test", &TestKey(1), &mut Vec::new()));
+        let stored_value =
+            storage_read(&to_key(b"test", &TestKey(1), &mut Vec::new()));
 
         assert_eq!(
             TestValue::try_from_slice(stored_value.unwrap().as_slice())
@@ -321,7 +342,8 @@ mod tests {
 
     #[test]
     fn test_insert_persistence() {
-        let mut map: LookupMap<TestKey, TestValue> = LookupMap::new(b"test".to_vec());
+        let mut map: LookupMap<TestKey, TestValue> =
+            LookupMap::new(b"test".to_vec());
 
         map.insert(TestKey(1), TestValue(10));
         map.flush();
@@ -329,22 +351,25 @@ mod tests {
         let key_with_prefix = to_key(b"test", &TestKey(1), &mut Vec::new());
         let stored_value = storage_read(&key_with_prefix);
 
-        let stored_value = TestValue::try_from_slice(stored_value.unwrap().as_slice())
-            .unwrap_or_else(|_| panic!("Failed to deserialize"));
+        let stored_value =
+            TestValue::try_from_slice(stored_value.unwrap().as_slice())
+                .unwrap_or_else(|_| panic!("Failed to deserialize"));
 
         assert_eq!(stored_value, TestValue(10));
     }
 
     #[test]
     fn test_set_persistence() {
-        let mut map: LookupMap<TestKey, TestValue> = LookupMap::new(b"test".to_vec());
+        let mut map: LookupMap<TestKey, TestValue> =
+            LookupMap::new(b"test".to_vec());
 
         // Set a key-value pair and flush to storage
         map.set(TestKey(1), Some(TestValue(10)));
         map.flush();
 
         // Check storage for the key
-        let stored_value_bytes = storage_read(&to_key(b"test", &TestKey(1), &mut Vec::new()));
+        let stored_value_bytes =
+            storage_read(&to_key(b"test", &TestKey(1), &mut Vec::new()));
 
         assert!(
             stored_value_bytes.is_some(),
@@ -352,9 +377,10 @@ mod tests {
         );
 
         // Decode stored value
-        let stored_value: TestValue =
-            borsh::BorshDeserialize::deserialize(&mut stored_value_bytes.unwrap().as_slice())
-                .unwrap();
+        let stored_value: TestValue = borsh::BorshDeserialize::deserialize(
+            &mut stored_value_bytes.unwrap().as_slice(),
+        )
+        .unwrap();
 
         // Assert the stored value matches what was set
         assert_eq!(stored_value, TestValue(10));
@@ -362,7 +388,8 @@ mod tests {
 
     #[test]
     fn test_update_persistence() {
-        let mut map: LookupMap<TestKey, TestValue> = LookupMap::new(b"test".to_vec());
+        let mut map: LookupMap<TestKey, TestValue> =
+            LookupMap::new(b"test".to_vec());
 
         // Insert a key-value pair and flush to storage
         map.insert(TestKey(1), TestValue(10));
@@ -373,10 +400,12 @@ mod tests {
         map.flush();
 
         // Check storage for key-value pair
-        let stored_value_bytes = storage_read(&to_key(b"test", &TestKey(1), &mut Vec::new()));
+        let stored_value_bytes =
+            storage_read(&to_key(b"test", &TestKey(1), &mut Vec::new()));
 
-        let stored_value = TestValue::try_from_slice(stored_value_bytes.unwrap().as_slice())
-            .unwrap_or_else(|_| panic!("Failed to deserialize"));
+        let stored_value =
+            TestValue::try_from_slice(stored_value_bytes.unwrap().as_slice())
+                .unwrap_or_else(|_| panic!("Failed to deserialize"));
 
         assert_eq!(
             stored_value,
@@ -387,7 +416,8 @@ mod tests {
 
     #[test]
     fn test_remove_persistence() {
-        let mut map: LookupMap<TestKey, TestValue> = LookupMap::new(b"test".to_vec());
+        let mut map: LookupMap<TestKey, TestValue> =
+            LookupMap::new(b"test".to_vec());
 
         // Insert a key-value pair and flush to storage
         map.insert(TestKey(1), TestValue(10));
@@ -398,7 +428,8 @@ mod tests {
         map.flush();
 
         // Check storage for the key
-        let stored_value_bytes = storage_read(&to_key(b"test", &TestKey(1), &mut Vec::new()));
+        let stored_value_bytes =
+            storage_read(&to_key(b"test", &TestKey(1), &mut Vec::new()));
 
         assert!(
             stored_value_bytes.is_none(),
@@ -408,7 +439,8 @@ mod tests {
 
     #[test]
     fn test_remove_function() {
-        let mut map: LookupMap<TestKey, TestValue> = LookupMap::new(b"test".to_vec());
+        let mut map: LookupMap<TestKey, TestValue> =
+            LookupMap::new(b"test".to_vec());
 
         // Insert key-value pair
         map.insert(TestKey(1), TestValue(10));

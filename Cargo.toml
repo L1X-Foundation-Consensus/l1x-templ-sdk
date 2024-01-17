@@ -1,8 +1,11 @@
 [workspace]
 members = [
-	"crates/l1x-sdk",
-	"crates/l1x-sdk-macros",
-    "crates/l1x-sys"
+    "crates/l1x-sdk",
+    "crates/l1x-sdk-primitives",
+    "crates/l1x-sdk-macros",
+    "crates/l1x-sys",
+    "crates/test-runtime",
+    "crates/test-utility",
 ]
 
 [workspace.package]
